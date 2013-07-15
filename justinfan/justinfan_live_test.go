@@ -31,7 +31,9 @@ func ExampleConnect(t *testing.T) {
       }
     }
   }()
-  <-time.After(10 * time.Second)
+  <-time.After(5 * time.Second)
+  c.SetChannels([]string{"reckful"})
+  <-time.After(5 * time.Second)
   c.Disconnect()
   stopped.Set(true)
 }

@@ -57,8 +57,6 @@ func (c *Client) Disconnect() {
 
 // SetChannels updates the client to monitor the channels in channelNames.
 func (c *Client) SetChannels(channelNames []string) {
-  c.joinQueue = make([]string, 0)
-  c.partQueue = make([]string, 0)
   m := make(map[string]bool, len(channelNames))
   for _, name := range channelNames {
     if _, ok := c.channels[name]; !ok {
@@ -180,12 +178,13 @@ func (c *Client) channelManager() {
   c.writeLine("NICK " + ircUser)
   c.connected.WaitFor(true)
   disconnection := c.connected.ChanFor(false)
-  for ; c.conn != nil; c.valid.Set(true) {
+  for {
     select {
     case <-disconnection:
       return
     case <-c.valid.ChanFor(false):
     }
+
     for _, name := range c.partQueue {
       c.writeLine("PART #" + name)
       delete(c.channels, name)
@@ -194,8 +193,10 @@ func (c *Client) channelManager() {
       c.writeLine("JOIN #" + name)
       c.channels[name] = true
     }
+
     c.partQueue = nil
     c.joinQueue = nil
+    c.valid.Set(true)
   }
 }
 
