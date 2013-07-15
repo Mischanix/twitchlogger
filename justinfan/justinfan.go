@@ -77,13 +77,13 @@ func (c *Client) Messages() <-chan *Message {
 }
 
 func (c *Client) readHandler() {
-  buf := make([]byte, 1024)
+  buffer := make([]byte, 1024)
   var unprocessed []byte
   for c.conn != nil {
-    // buf := make([]byte, 1)
+    buf := buffer
     l, err := c.conn.Read(buf)
     if unprocessed != nil {
-      buf = append(unprocessed, buf...)
+      buf = append(unprocessed, buf[:l]...)
       l += len(unprocessed)
     }
     if err != nil {
