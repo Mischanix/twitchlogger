@@ -51,6 +51,7 @@ func Connect() *Client {
 
 // Disconnect closes the client.
 func (c *Client) Disconnect() {
+  c.connected.Set(false)
   c.conn.Close()
   c.valid.Set(false)
 }
