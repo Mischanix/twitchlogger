@@ -18,7 +18,7 @@ func init() {
 
 func ExampleConnect(t *testing.T) {
   c := Connect()
-  c.SetChannels([]string{"sodapoppin"})
+  c.SetChannels([]string{"wcs_gsl"})
   go func() {
     stopChan := stopped.ChanFor(true)
     msgChan := c.Messages()
@@ -32,8 +32,10 @@ func ExampleConnect(t *testing.T) {
     }
   }()
   <-time.After(5 * time.Second)
-  c.SetChannels([]string{"reckful"})
+  fmt.Println(len(c.Users("wcs_gsl")))
+  c.SetChannels([]string{"wcs_osl"})
   <-time.After(5 * time.Second)
+  fmt.Println(len(c.Users("wcs_osl")))
   c.Disconnect()
   stopped.Set(true)
 }

@@ -21,7 +21,7 @@ type Message struct {
 
 type Client struct {
   conn      net.Conn
-  channels  map[string]bool
+  channels  map[string]map[string]bool
   joinQueue []string
   partQueue []string
   connected *wait.Flag
@@ -33,7 +33,7 @@ type Client struct {
 func Connect() *Client {
   c := &Client{
     nil,
-    make(map[string]bool),
+    make(map[string]map[string]bool),
     nil, nil,
     wait.NewFlag(false),
     wait.NewFlag(true),
@@ -75,6 +75,15 @@ func (c *Client) SetChannels(channelNames []string) {
 
 func (c *Client) Messages() <-chan *Message {
   return (<-chan *Message)(c.messages)
+}
+
+func (c *Client) Users(channel string) (result []string) {
+  if users, ok := c.channels[channel]; ok {
+    for user := range users {
+      result = append(result, user)
+    }
+  }
+  return result
 }
 
 func (c *Client) readHandler() {
@@ -143,6 +152,23 @@ func (c *Client) handleMessage(method, source, dest, theRest string) {
   case "001":
     applog.Info("justinfan: connection successful")
     c.connected.Set(true)
+  case "353":
+    c.parseNames(theRest)
+  case "JOIN", "PART":
+    user := clientToUsername(source)
+    if user == ircUser {
+      break
+    }
+    channel := dest[1:]
+    users, ok := c.channels[channel]
+    if !ok {
+      break
+    }
+    if method == "JOIN" {
+      users[user] = true
+    } else {
+      delete(users, user)
+    }
   case "PRIVMSG":
     user := clientToUsername(source)
     if user == "jtv" {
@@ -158,6 +184,43 @@ func (c *Client) handleMessage(method, source, dest, theRest string) {
       theRest[1:],
     }
     c.messages <- msg
+  }
+}
+
+func (c *Client) parseNames(msg string) {
+  if msg[0] != '=' {
+    applog.Warn("justinfan.parseNames: Invalid 353 Names list")
+    return
+  }
+  var names []string
+  var channel string
+  var t, n int
+  for s, c := range msg {
+    switch c {
+    case ':':
+      n++
+      t = s + 1
+    case ' ':
+      switch n {
+      case 0:
+        n++
+      case 1:
+        channel = msg[t+1 : s]
+      case 2:
+        names = append(names, msg[t:s])
+      }
+      t = s + 1
+    }
+  }
+  users, ok := c.channels[channel]
+  if !ok {
+    c.channels[channel] = make(map[string]bool, len(names))
+  }
+  for _, name := range names {
+    if name == ircUser {
+      continue
+    }
+    users[name] = true
   }
 }
 
@@ -192,7 +255,7 @@ func (c *Client) channelManager() {
     }
     for _, name := range c.joinQueue {
       c.writeLine("JOIN #" + name)
-      c.channels[name] = true
+      c.channels[name] = make(map[string]bool, 0)
     }
 
     c.partQueue = nil
