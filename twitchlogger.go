@@ -43,11 +43,13 @@ func main() {
     <-c
     stopping.Set(true)
   }()
-  go func() { // For Windows
-    if _, err := os.Stdin.Read(nil); err == nil {
-      stopping.Set(true)
-    }
-  }()
+  if logStdout {
+    go func() { // For Windows
+      if _, err := os.Stdin.Read(nil); err == nil {
+        stopping.Set(true)
+      }
+    }()
+  }
 
   // Log setup
   applog.Level = applog.InfoLevel
