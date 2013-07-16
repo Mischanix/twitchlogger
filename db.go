@@ -46,10 +46,10 @@ func dbClient() {
 }
 
 type statusDoc struct {
-  channel string
-  status  string
-  users   []string
-  viewers int
+  Channel string
+  Status  string
+  Users   []string
+  Viewers int
 }
 
 type dbDocs struct {
