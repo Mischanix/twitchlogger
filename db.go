@@ -6,6 +6,7 @@ import (
   "github.com/Mischanix/twitchlogger/justinfan"
   "github.com/Mischanix/wait"
   "labix.org/v2/mgo"
+  "time"
 )
 
 var db struct {
@@ -46,10 +47,11 @@ func dbClient() {
 }
 
 type statusDoc struct {
-  Channel string
-  Status  string
-  Users   []string
-  Viewers int
+  Channel   string
+  Timestamp time.Time
+  Status    string
+  Users     []string
+  Viewers   int
 }
 
 type dbDocs struct {

@@ -4,6 +4,7 @@ import (
   "github.com/Mischanix/applog"
   "net/url"
   "strconv"
+  "time"
 )
 
 type streamsResponse struct {
@@ -89,6 +90,7 @@ func updateStatuses() {
   for name, status := range streams.status {
     db.statusBuffer.Add(&statusDoc{
       name,
+      time.Now(),
       status.Status,
       irc.client.Users(name),
       status.Viewers,
