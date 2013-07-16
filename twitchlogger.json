@@ -1,0 +1,8 @@
+{
+  "db_url": "localhost",
+  "db_name": "tl-dev",
+  "msg_collection": "messages",
+  "status_collection": "statuses",
+  "update_interval": 300000,
+  "viewer_threshold": 100
+}
