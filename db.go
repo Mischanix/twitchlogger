@@ -50,7 +50,6 @@ type statusDoc struct {
   Channel   string
   Timestamp time.Time
   Status    string
-  Users     []string
   Viewers   int
 }
 

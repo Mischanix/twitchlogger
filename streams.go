@@ -92,7 +92,6 @@ func updateStatuses() {
       name,
       time.Now(),
       status.Status,
-      irc.client.Users(name),
       status.Viewers,
     })
   }
