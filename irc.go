@@ -17,7 +17,7 @@ func ircConsumer() {
     case msg := <-messages:
       db.msgBuffer.Add(msg)
     case cmd := <-commands:
-      db.cmdBuffer.Add(cmd)
+      go processCommand(cmd)
     }
   }
 }

@@ -6,6 +6,7 @@ import (
   "github.com/Mischanix/twitchlogger/justinfan"
   "github.com/Mischanix/wait"
   "labix.org/v2/mgo"
+  "labix.org/v2/mgo/bson"
   "time"
 )
 
@@ -16,10 +17,8 @@ var db struct {
   msgColl      *mgo.Collection
   statusColl   *mgo.Collection
   messages     *dbDocs
-  commands     *dbDocs
   statuses     *dbDocs
   msgBuffer    *batcher.Buffer
-  cmdBuffer    *batcher.Buffer
   statusBuffer *batcher.Buffer
 }
 
@@ -33,13 +32,10 @@ func dbClient() {
   db.msgColl = db.database.C(config.MsgCollection)
   db.statusColl = db.database.C(config.StatusCollection)
   db.messages = &dbDocs{nil}
-  db.commands = &dbDocs{nil}
   db.statuses = &dbDocs{nil}
   db.msgBuffer = batcher.New(db.messages, batcher.ElementCountThreshold)
-  db.cmdBuffer = batcher.New(db.commands, batcher.ElementCountThreshold)
   db.statusBuffer = batcher.New(db.statuses, batcher.Manual)
   db.msgBuffer.SetThreshold(128)
-  db.cmdBuffer.SetThreshold(128)
 
   // Flush docs before exit
   stopped.Add(1)
@@ -49,6 +45,21 @@ func dbClient() {
     stopped.Done()
   })
   db.ready.Set(true)
+}
+
+func processCommand(cmd *justinfan.Command) {
+  switch cmd.Command {
+  case "USERCOLOR", "EMOTESET", "SPECIALUSER":
+    _, err := db.msgColl.Upsert(
+      bson.M{"user": cmd.User, "command": cmd.Command},
+      bson.M{"arg": cmd.Arg, "received": cmd.Received},
+    )
+    if err != nil {
+      db.msgColl.Insert(cmd)
+    }
+  default:
+    db.msgColl.Insert(cmd)
+  }
 }
 
 type statusDoc struct {
@@ -72,8 +83,6 @@ func (d *dbDocs) Flush() {
   }
   var coll *mgo.Collection
   if _, ok := d.docs[0].(*justinfan.Message); ok {
-    coll = db.msgColl
-  } else if _, ok := d.docs[0].(*justinfan.Command); ok {
     coll = db.msgColl
   } else if _, ok := d.docs[0].(*statusDoc); ok {
     coll = db.statusColl
