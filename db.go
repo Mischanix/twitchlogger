@@ -37,6 +37,9 @@ func dbClient() {
   db.statusBuffer = batcher.New(db.statuses, batcher.Manual)
   db.msgBuffer.SetThreshold(128)
 
+  db.session.SetSafe(nil)
+  applog.Info("db safety: %v", db.session.Safe())
+
   // Flush docs before exit
   stopped.Add(1)
   stopping.Once(true, func() {
@@ -50,13 +53,10 @@ func dbClient() {
 func processCommand(cmd *justinfan.Command) {
   switch cmd.Command {
   case "USERCOLOR", "EMOTESET", "SPECIALUSER":
-    _, err := db.msgColl.Upsert(
+    db.msgColl.Upsert(
       bson.M{"user": cmd.User, "command": cmd.Command, "arg": cmd.Arg},
-      bson.M{"received": cmd.Received},
+      cmd,
     )
-    if err != nil {
-      db.msgColl.Insert(cmd)
-    }
   default:
     db.msgColl.Insert(cmd)
   }
