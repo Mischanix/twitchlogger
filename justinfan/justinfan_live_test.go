@@ -34,7 +34,11 @@ func TestConnect(t *testing.T) {
       }
     }
   }()
-  <-time.After(30 * time.Second)
+  <-time.After(10 * time.Second)
+  c.conn.Close()
+  <-time.After(10 * time.Second)
   c.Disconnect()
+  // Ensure silence
+  <-time.After(10 * time.Second)
   stopped.Set(true)
 }

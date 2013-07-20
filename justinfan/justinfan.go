@@ -28,15 +28,17 @@ type Command struct {
 }
 
 type Client struct {
-  conn      net.Conn
-  parser    *ircParser
-  channels  map[string]bool
-  joinQueue []string
-  partQueue []string
-  connected *wait.Flag
-  valid     *wait.Flag
-  messages  chan *Message
-  commands  chan *Command
+  conn           net.Conn
+  parser         *ircParser
+  channels       map[string]bool
+  joinQueue      []string
+  partQueue      []string
+  connected      *wait.Flag
+  valid          *wait.Flag
+  destroyed      *wait.Flag
+  messages       chan *Message
+  commands       chan *Command
+  reconnectDelay time.Duration
 }
 
 // Connect creates a new client and begins and authenticates the IRC session.
@@ -47,20 +49,20 @@ func Connect() *Client {
     nil, nil,
     wait.NewFlag(false),
     wait.NewFlag(true),
+    wait.NewFlag(false),
     make(chan *Message, 64),
     make(chan *Command, 64),
+    1 * time.Second,
   }
-  c.connectionManager()
-  go c.readHandler()
-  go c.channelManager()
+  go c.connectionManager()
   return c
 }
 
 // Disconnect closes the client.
 func (c *Client) Disconnect() {
+  c.destroyed.Set(true)
   c.connected.Set(false)
   c.conn.Close()
-  c.valid.Set(false)
 }
 
 // SetChannels updates the client to monitor the channels in channelNames.
@@ -89,7 +91,7 @@ func (c *Client) Commands() <-chan *Command {
 }
 
 func (c *Client) readHandler() {
-  for c.conn != nil {
+  for {
     ircMsg, err := c.parser.parseMessage()
     if err != nil {
       applog.Error("justinfan.read error: %v", err)
@@ -148,12 +150,32 @@ func clientToUsername(client string) string {
 }
 
 func (c *Client) connectionManager() {
-  conn, err := net.Dial("tcp", ircDial)
-  if err != nil {
-    applog.Error("justinfan.Connect failed: %v", err)
+  for {
+    conn, err := net.Dial("tcp", ircDial)
+    if err != nil {
+      applog.Error("justinfan.Connect failed: %v", err)
+    }
+    c.conn = conn
+    c.parser = newParser(c.conn)
+    go c.readHandler()
+    go c.channelManager()
+
+    c.connected.WaitFor(true)
+    c.connected.WaitFor(false)
+
+    c.resetChannels()
+
+    select {
+    case <-c.destroyed.ChanFor(true):
+      return
+    case <-time.After(c.reconnectDelay):
+      applog.Info("justinfan: attempting to reconnect...")
+      c.reconnectDelay *= 2
+      if c.reconnectDelay > 30*time.Second {
+        c.reconnectDelay = 30 * time.Second
+      }
+    }
   }
-  c.conn = conn
-  c.parser = newParser(c.conn)
 }
 
 func (c *Client) channelManager() {
@@ -182,6 +204,15 @@ func (c *Client) channelManager() {
     c.joinQueue = nil
     c.valid.Set(true)
   }
+}
+
+func (c *Client) resetChannels() {
+  channelNames := make([]string, 0)
+  for name, _ := range c.channels {
+    channelNames = append(channelNames, name)
+  }
+  c.channels = make(map[string]bool)
+  c.SetChannels(channelNames)
 }
 
 func (c *Client) writeLine(line string) {
