@@ -35,7 +35,6 @@ func TestConnect(t *testing.T) {
     }
   }()
   <-time.After(30 * time.Second)
-  fmt.Println(len(c.Users("riotgames")))
   c.Disconnect()
   stopped.Set(true)
 }

@@ -3,7 +3,6 @@ package justinfan
 import (
   "bufio"
   "errors"
-  "github.com/Mischanix/applog"
   "io"
   "time"
 )
@@ -83,41 +82,4 @@ func parseCommand(msg *ircMessage) (*Command, error) {
     cmd.Arg = string(text[s:])
   }
   return cmd, nil
-}
-
-func (c *Client) parseNames(msg string) {
-  if msg[0] != '=' {
-    applog.Warn("justinfan.parseNames: Invalid 353 Names list")
-    return
-  }
-  var names []string
-  var channel string
-  var t, n int
-  for s, c := range msg {
-    switch c {
-    case ':':
-      n++
-      t = s + 1
-    case ' ':
-      switch n {
-      case 0:
-        n++
-      case 1:
-        channel = msg[t+1 : s]
-      case 2:
-        names = append(names, msg[t:s])
-      }
-      t = s + 1
-    }
-  }
-  users, ok := c.channels[channel]
-  if !ok {
-    c.channels[channel] = make(map[string]bool, len(names))
-  }
-  for _, name := range names {
-    if name == ircUser {
-      continue
-    }
-    users[name] = true
-  }
 }

@@ -30,7 +30,7 @@ type Command struct {
 type Client struct {
   conn      net.Conn
   parser    *ircParser
-  channels  map[string]map[string]bool
+  channels  map[string]bool
   joinQueue []string
   partQueue []string
   connected *wait.Flag
@@ -43,7 +43,7 @@ type Client struct {
 func Connect() *Client {
   c := &Client{
     nil, nil,
-    make(map[string]map[string]bool),
+    make(map[string]bool),
     nil, nil,
     wait.NewFlag(false),
     wait.NewFlag(true),
@@ -88,15 +88,6 @@ func (c *Client) Commands() <-chan *Command {
   return (<-chan *Command)(c.commands)
 }
 
-func (c *Client) Users(channel string) (result []string) {
-  if users, ok := c.channels[channel]; ok {
-    for user := range users {
-      result = append(result, user)
-    }
-  }
-  return result
-}
-
 func (c *Client) readHandler() {
   for c.conn != nil {
     ircMsg, err := c.parser.parseMessage()
@@ -117,23 +108,6 @@ func (c *Client) handleMessage(msg *ircMessage) {
   case "001":
     applog.Info("justinfan: connection successful")
     c.connected.Set(true)
-  case "353":
-    c.parseNames(msg.theRest)
-  case "JOIN", "PART":
-    user := clientToUsername(msg.source)
-    if user == ircUser {
-      break
-    }
-    channel := msg.dest[1:]
-    users, ok := c.channels[channel]
-    if !ok {
-      break
-    }
-    if msg.method == "JOIN" {
-      users[user] = true
-    } else {
-      delete(users, user)
-    }
   case "PRIVMSG":
     user := clientToUsername(msg.source)
     if user == "jtv" {
@@ -201,7 +175,7 @@ func (c *Client) channelManager() {
     }
     for _, name := range c.joinQueue {
       c.writeLine("JOIN #" + name)
-      c.channels[name] = make(map[string]bool, 0)
+      c.channels[name] = true
     }
 
     c.partQueue = nil
