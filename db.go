@@ -51,8 +51,8 @@ func processCommand(cmd *justinfan.Command) {
   switch cmd.Command {
   case "USERCOLOR", "EMOTESET", "SPECIALUSER":
     _, err := db.msgColl.Upsert(
-      bson.M{"user": cmd.User, "command": cmd.Command},
-      bson.M{"arg": cmd.Arg, "received": cmd.Received},
+      bson.M{"user": cmd.User, "command": cmd.Command, "arg": cmd.Arg},
+      bson.M{"received": cmd.Received},
     )
     if err != nil {
       db.msgColl.Insert(cmd)
