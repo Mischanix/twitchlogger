@@ -19,31 +19,38 @@ type Message struct {
   Message  string
 }
 
+// Command is a command sent by Jtv such as USERCOLOR or CLEARCHAT
+type Command struct {
+  User     string
+  Received time.Time
+  Command  string
+  Arg      string
+}
+
 type Client struct {
   conn      net.Conn
+  parser    *ircParser
   channels  map[string]map[string]bool
   joinQueue []string
   partQueue []string
   connected *wait.Flag
   valid     *wait.Flag
   messages  chan *Message
+  commands  chan *Command
 }
 
 // Connect creates a new client and begins and authenticates the IRC session.
 func Connect() *Client {
   c := &Client{
-    nil,
+    nil, nil,
     make(map[string]map[string]bool),
     nil, nil,
     wait.NewFlag(false),
     wait.NewFlag(true),
     make(chan *Message, 64),
+    make(chan *Command, 64),
   }
-  conn, err := net.Dial("tcp", ircDial)
-  if err != nil {
-    applog.Error("justinfan.Connect failed: %v", err)
-  }
-  c.conn = conn
+  c.connectionManager()
   go c.readHandler()
   go c.channelManager()
   return c
@@ -77,6 +84,10 @@ func (c *Client) Messages() <-chan *Message {
   return (<-chan *Message)(c.messages)
 }
 
+func (c *Client) Commands() <-chan *Command {
+  return (<-chan *Command)(c.commands)
+}
+
 func (c *Client) Users(channel string) (result []string) {
   if users, ok := c.channels[channel]; ok {
     for user := range users {
@@ -87,140 +98,65 @@ func (c *Client) Users(channel string) (result []string) {
 }
 
 func (c *Client) readHandler() {
-  buffer := make([]byte, 1024)
-  var unprocessed []byte
   for c.conn != nil {
-    buf := buffer
-    l, err := c.conn.Read(buf)
-    if unprocessed != nil {
-      buf = append(unprocessed, buf[:l]...)
-      l += len(unprocessed)
-    }
+    ircMsg, err := c.parser.parseMessage()
     if err != nil {
       applog.Error("justinfan.read error: %v", err)
+      c.connected.Set(false)
       return
     }
-
-    var (
-      // t = token start, n = stage, b = beginning
-      t, n, b                       int
-      method, source, dest, theRest string
-    )
-    for s := 0; s < l; s++ {
-      switch buf[s] {
-      case ' ':
-        switch n {
-        case 0:
-          source = string(buf[t:s])
-        case 1:
-          method = string(buf[t:s])
-        case 2:
-          dest = string(buf[t:s])
-        }
-        if n < 3 {
-          t = s + 1
-          n++
-        }
-      case '\r', '\n':
-        // This treats \n\r and \r as valid as well.  Regardless, tmi only uses
-        // \r\n.
-        if t != s {
-          switch n {
-          case 2: // If there is no message
-            dest = string(buf[t:s])
-          case 3:
-            theRest = string(buf[t:s])
-          }
-          c.handleMessage(method, source, dest, theRest)
-        }
-        n = 0
-        b = s + 1
-        t = b
-      }
-    }
-    if b <= l {
-      unprocessed = make([]byte, l-b)
-      copy(unprocessed, buf[b:l])
-    } else {
-      unprocessed = nil
-    }
+    c.handleMessage(ircMsg)
   }
 }
 
-func (c *Client) handleMessage(method, source, dest, theRest string) {
-  switch method {
+func (c *Client) handleMessage(msg *ircMessage) {
+  if msg == nil {
+    return
+  }
+  switch msg.method {
   case "001":
     applog.Info("justinfan: connection successful")
     c.connected.Set(true)
   case "353":
-    c.parseNames(theRest)
+    c.parseNames(msg.theRest)
   case "JOIN", "PART":
-    user := clientToUsername(source)
+    user := clientToUsername(msg.source)
     if user == ircUser {
       break
     }
-    channel := dest[1:]
+    channel := msg.dest[1:]
     users, ok := c.channels[channel]
     if !ok {
       break
     }
-    if method == "JOIN" {
+    if msg.method == "JOIN" {
       users[user] = true
     } else {
       delete(users, user)
     }
   case "PRIVMSG":
-    user := clientToUsername(source)
+    user := clientToUsername(msg.source)
     if user == "jtv" {
-      return
-    }
-    if theRest == "" || dest[0] != '#' || theRest[0] != ':' {
-      return
-    }
-    msg := &Message{
-      user,
-      dest[1:],
-      time.Now(),
-      theRest[1:],
-    }
-    c.messages <- msg
-  }
-}
-
-func (c *Client) parseNames(msg string) {
-  if msg[0] != '=' {
-    applog.Warn("justinfan.parseNames: Invalid 353 Names list")
-    return
-  }
-  var names []string
-  var channel string
-  var t, n int
-  for s, c := range msg {
-    switch c {
-    case ':':
-      n++
-      t = s + 1
-    case ' ':
-      switch n {
-      case 0:
-        n++
-      case 1:
-        channel = msg[t+1 : s]
-      case 2:
-        names = append(names, msg[t:s])
+      cmd, err := parseCommand(msg)
+      if err != nil {
+        applog.Error("justinfan: error parsing jtv command: %v", err)
       }
-      t = s + 1
+      if cmd.Command == "HISTORYEND" {
+        break
+      }
+      c.commands <- cmd
+    } else {
+      if msg.theRest == "" || msg.theRest[0] != ':' || msg.dest[0] != '#' {
+        break
+      }
+      privmsg := &Message{
+        user,
+        msg.dest[1:],
+        msg.received,
+        msg.theRest[1:],
+      }
+      c.messages <- privmsg
     }
-  }
-  users, ok := c.channels[channel]
-  if !ok {
-    c.channels[channel] = make(map[string]bool, len(names))
-  }
-  for _, name := range names {
-    if name == ircUser {
-      continue
-    }
-    users[name] = true
   }
 }
 
@@ -237,7 +173,17 @@ func clientToUsername(client string) string {
   return client[start:]
 }
 
+func (c *Client) connectionManager() {
+  conn, err := net.Dial("tcp", ircDial)
+  if err != nil {
+    applog.Error("justinfan.Connect failed: %v", err)
+  }
+  c.conn = conn
+  c.parser = newParser(c.conn)
+}
+
 func (c *Client) channelManager() {
+  c.writeLine("TWITCHCLIENT 2")
   c.writeLine("PASS " + ircPass)
   c.writeLine("NICK " + ircUser)
   c.connected.WaitFor(true)

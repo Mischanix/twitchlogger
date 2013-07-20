@@ -11,8 +11,14 @@ var irc struct {
 func ircConsumer() {
   irc.client = justinfan.Connect()
   messages := irc.client.Messages()
+  commands := irc.client.Commands()
   for {
-    db.msgBuffer.Add(<-messages)
+    select {
+    case msg := <-messages:
+      db.msgBuffer.Add(msg)
+    case cmd := <-commands:
+      db.cmdBuffer.Add(cmd)
+    }
   }
 }
 

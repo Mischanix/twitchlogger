@@ -16,26 +16,26 @@ func init() {
   applog.Level = applog.DebugLevel
 }
 
-func ExampleConnect(t *testing.T) {
+func TestConnect(t *testing.T) {
   c := Connect()
-  c.SetChannels([]string{"wcs_gsl"})
+  c.SetChannels([]string{"riotgames"})
   go func() {
     stopChan := stopped.ChanFor(true)
     msgChan := c.Messages()
+    cmdChan := c.Commands()
     for {
       select {
-      case m := <-msgChan:
-        fmt.Println(m)
+      case msg := <-msgChan:
+        fmt.Println(msg)
+      case cmd := <-cmdChan:
+        fmt.Println(cmd)
       case <-stopChan:
         return
       }
     }
   }()
-  <-time.After(5 * time.Second)
-  fmt.Println(len(c.Users("wcs_gsl")))
-  c.SetChannels([]string{"wcs_osl"})
-  <-time.After(5 * time.Second)
-  fmt.Println(len(c.Users("wcs_osl")))
+  <-time.After(30 * time.Second)
+  fmt.Println(len(c.Users("riotgames")))
   c.Disconnect()
   stopped.Set(true)
 }
