@@ -62,9 +62,10 @@ func processCommand(cmd *justinfan.Command) {
       db.msgColl.Insert(cmd)
     } else {
       db.msgColl.Insert(bson.M{
-        "user":    cmd.User,
-        "command": cmd.Command,
-        "channel": channel,
+        "user":     cmd.User,
+        "received": cmd.Received,
+        "command":  cmd.Command,
+        "channel":  channel,
       })
     }
   default:
