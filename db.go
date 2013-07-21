@@ -57,6 +57,16 @@ func processCommand(cmd *justinfan.Command) {
       bson.M{"user": cmd.User, "command": cmd.Command, "arg": cmd.Arg},
       cmd,
     )
+  case "CLEARCHAT":
+    if channel, ok := irc.lastChannel[cmd.User]; !ok {
+      db.msgColl.Insert(cmd)
+    } else {
+      db.msgColl.Insert(bson.M{
+        "user":    cmd.User,
+        "command": cmd.Command,
+        "channel": channel,
+      })
+    }
   default:
     db.msgColl.Insert(cmd)
   }
