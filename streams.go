@@ -33,12 +33,12 @@ func updateStreams() {
     streams.status = make(map[string]streamStatus)
   }
   // anti-dos limits
-  limit := 10
+  limit := 20
   count := 0
-  var curr streamsResponse
   var offset int
   done := false
   for !done {
+    var curr streamsResponse
     if count > limit {
       break
     }
@@ -46,8 +46,11 @@ func updateStreams() {
     opts.Add("limit", "100")
     opts.Add("offset", strconv.Itoa(offset))
     err := apiGet("streams", opts, &curr)
+    count++
     if err != nil {
       applog.Error("updateStreams.err: %v", err)
+      <-time.After(5 * time.Second)
+      continue
     }
 
     for _, stream := range curr.Streams {
@@ -62,7 +65,7 @@ func updateStreams() {
       }
       streams.list = append(streams.list, streamName)
     }
-    count++
+    <-time.After(1 * time.Second)
     offset += 100
   }
 
@@ -80,8 +83,8 @@ func updateStreams() {
   }
 
   applog.Info(
-    "streams.updateStreams: Got %d streams from kraken",
-    len(streams.status),
+    "streams.updateStreams: Got %d streams / %d results from kraken",
+    len(streams.status), len(streams.list),
   )
   updateChannels(streams.list)
 }
