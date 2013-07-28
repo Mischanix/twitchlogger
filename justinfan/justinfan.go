@@ -113,6 +113,17 @@ func (c *Client) handleMessage(msg *ircMessage) {
     c.connected.Set(true)
   case "PING":
     c.writeLine("PONG")
+  case "MODE":
+    user := clientToUsername(msg.source)
+    if user == "jtv" {
+      cmd := &Command{}
+      cmd.Received = time.Now()
+      cmd.Command = "SPECIALUSER"
+      cmd.Arg = "moderator"
+      cmd.Channel = msg.dest[1:]
+      cmd.User = msg.theRest[3:]
+      c.commands <- cmd
+    }
   case "PRIVMSG":
     user := clientToUsername(msg.source)
     if user == "jtv" {
