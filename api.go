@@ -37,7 +37,16 @@ func apiGet(path string, opts url.Values, result interface{}) error {
     applog.Error("api.get: response error: %v", err)
     return err
   }
-  json.NewDecoder(resp.Body).Decode(result)
+  err = json.NewDecoder(resp.Body).Decode(result)
+  if err != nil {
+    applog.Error("api.get: json decode error: %v", err)
+    return err
+  }
+  err = resp.Body.Close()
+  if err != nil {
+    applog.Error("api.get: body.close error: %v", err)
+    return err
+  }
   return nil
 }
 
