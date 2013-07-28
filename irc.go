@@ -14,15 +14,18 @@ func ircConsumer() {
   irc.lastChannel = make(map[string]string)
   messages := irc.client.Messages()
   commands := irc.client.Commands()
-  for {
-    select {
-    case msg := <-messages:
+  go func() {
+    for {
+      msg := <-messages
       irc.lastChannel[msg.User] = msg.Channel
       db.msgBuffer.Add(msg)
-    case cmd := <-commands:
-      go processCommand(cmd)
     }
-  }
+  }()
+  go func() {
+    for {
+      processCommand(<-commands)
+    }
+  }()
 }
 
 func updateChannels(channels []string) {
