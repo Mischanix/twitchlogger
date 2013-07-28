@@ -26,7 +26,7 @@ func dbClient() {
   var err error
   db.ready = wait.NewFlag(false)
   if db.session, err = mgo.Dial(config.DbUrl); err != nil {
-    applog.Error("mgo.Dial failure: %v", err)
+    applog.Panic("mgo.Dial failure: %v", err)
   }
   db.database = db.session.DB(config.DbName)
   db.msgColl = db.database.C(config.MsgCollection)
