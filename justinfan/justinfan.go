@@ -22,6 +22,7 @@ type Message struct {
 // Command is a command sent by Jtv such as USERCOLOR or CLEARCHAT
 type Command struct {
   User     string
+  Channel  string
   Received time.Time
   Command  string
   Arg      string
@@ -30,7 +31,7 @@ type Command struct {
 type Client struct {
   conn           net.Conn
   parser         *ircParser
-  channels       map[string]bool
+  channels       map[string]struct{}
   joinQueue      []string
   partQueue      []string
   connected      *wait.Flag
@@ -45,7 +46,7 @@ type Client struct {
 func Connect() *Client {
   c := &Client{
     nil, nil,
-    make(map[string]bool),
+    make(map[string]struct{}),
     nil, nil,
     wait.NewFlag(false),
     wait.NewFlag(true),
@@ -67,12 +68,12 @@ func (c *Client) Disconnect() {
 
 // SetChannels updates the client to monitor the channels in channelNames.
 func (c *Client) SetChannels(channelNames []string) {
-  m := make(map[string]bool, len(channelNames))
+  m := make(map[string]struct{}, len(channelNames))
   for _, name := range channelNames {
     if _, ok := c.channels[name]; !ok {
       c.joinQueue = append(c.joinQueue, name)
     }
-    m[name] = true
+    m[name] = struct{}{}
   }
   for name, _ := range c.channels {
     if _, ok := m[name]; !ok {
@@ -110,6 +111,8 @@ func (c *Client) handleMessage(msg *ircMessage) {
   case "001":
     applog.Info("justinfan: connection successful")
     c.connected.Set(true)
+  case "PING":
+    c.writeLine("PONG")
   case "PRIVMSG":
     user := clientToUsername(msg.source)
     if user == "jtv" {
@@ -197,7 +200,7 @@ func (c *Client) channelManager() {
     }
     for _, name := range c.joinQueue {
       c.writeLine("JOIN #" + name)
-      c.channels[name] = true
+      c.channels[name] = struct{}{}
     }
 
     c.partQueue = nil
@@ -211,7 +214,7 @@ func (c *Client) resetChannels() {
   for name, _ := range c.channels {
     channelNames = append(channelNames, name)
   }
-  c.channels = make(map[string]bool)
+  c.channels = make(map[string]struct{})
   c.SetChannels(channelNames)
 }
 
