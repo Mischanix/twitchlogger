@@ -50,27 +50,14 @@ func dbClient() {
   db.ready.Set(true)
 }
 
-func processCommand(cmd *justinfan.Command) {
-  switch cmd.Command {
-  case "USERCOLOR", "EMOTESET", "SPECIALUSER":
-    db.msgColl.Upsert(
-      bson.M{"user": cmd.User, "command": cmd.Command, "arg": cmd.Arg},
-      cmd,
-    )
-  case "CLEARCHAT":
-    if channel, ok := irc.lastChannel[cmd.User]; !ok {
-      db.msgColl.Insert(cmd)
-    } else {
-      db.msgColl.Insert(bson.M{
-        "user":     cmd.User,
-        "received": cmd.Received,
-        "command":  cmd.Command,
-        "channel":  channel,
-      })
-    }
-  default:
-    db.msgColl.Insert(cmd)
-  }
+func insertCommand(cmd *justinfan.Command) {
+  db.msgColl.Upsert(
+    bson.M{
+      "user":    cmd.User,
+      "command": cmd.Command,
+      "arg":     cmd.Arg,
+      "channel": cmd.Channel,
+    }, cmd)
 }
 
 type statusDoc struct {
