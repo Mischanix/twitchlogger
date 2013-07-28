@@ -52,17 +52,17 @@ func processMessage(message *justinfan.Message) {
     signal.Set(true)
   } else {
     irc.userSignals[message.User] = wait.NewFlag(true)
-    // Hold the line open for a reasonable time period.  Since processCommand is
-    // used as a goroutine while processMessage is used inline, messages are
-    // often processed before the commands are processed, even though the
-    // commands were parsed and reached ircConsumer first.  It's also reasonable
-    // to believe that a human user will not speak in two different channels
-    // within 100ms.
-    go func() {
-      <-time.After(100 * time.Millisecond)
-      delete(irc.userSignals, message.User)
-    }()
   }
+  // Hold the line open for a reasonable time period.  Since processCommand is
+  // used as a goroutine while processMessage is used inline, messages are
+  // often processed before the commands are processed, even though the
+  // commands were parsed and reached ircConsumer first.  It's also reasonable
+  // to believe that a human user will not speak in two different channels
+  // within 100ms.
+  go func() {
+    <-time.After(100 * time.Millisecond)
+    delete(irc.userSignals, message.User)
+  }()
 }
 
 func processCommand(cmd *justinfan.Command) {
